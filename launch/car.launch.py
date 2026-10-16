@@ -54,6 +54,11 @@ def generate_launch_description():
              parameters=[cfg], output='screen',
              condition=IfCondition(LaunchConfiguration('use_camera'))),
 
+        # Live feed in a browser: http://<pi>:8080/stream?topic=/camera/image_raw
+        Node(package='web_video_server', executable='web_video_server',
+             name='web_video_server', output='screen',
+             condition=IfCondition(LaunchConfiguration('use_camera'))),
+
         # Node(package='pistar_car', executable='imu_node', name='imu_node',
         #      parameters=[cfg], output='screen',
         #      condition=IfCondition(LaunchConfiguration('use_imu'))),

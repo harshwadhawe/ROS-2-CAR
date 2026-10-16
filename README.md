@@ -11,6 +11,10 @@ ROS 2 Jazzy base stack for the Pi Star Lab RC car.
 | /wheel/speed | std_msgs/Float32 | encoder_node (planned) |
 | /lane_follower/debug | sensor_msgs/Image | lane_follower (mask, path, target) |
 
+## Drive with live feed
+`ros2 launch pistar_car car.launch.py use_camera:=true`, then open
+`http://<pi>:8080/stream?topic=/camera/image_raw` (or `/lane_follower/debug`).
+
 ## Autonomous (camera pure pursuit)
 `ros2 launch pistar_car car.launch.py use_camera:=true use_follower:=true`
 Stops when no yellow tape is seen. Measure the camera block of
