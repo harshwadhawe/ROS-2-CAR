@@ -1,0 +1,58 @@
+# Single config for every node on the car. Add a block per new sensor.
+
+actuator_node:
+  ros__parameters:
+    i2c_bus: 1
+    i2c_address: 0x40
+    pwm_frequency: 60
+    # Copy these from your DonkeyCar myconfig.py (same 12-bit tick units)
+    steering_channel: 14
+    throttle_channel: 1
+    steering_left_pwm: 470
+    steering_right_pwm: 320
+    throttle_forward_pwm: 460
+    throttle_stopped_pwm: 400
+    throttle_reverse_pwm: 340
+    max_steering_angle: 0.4    # rad at full lock
+    max_speed: 2.0             # m/s mapped to full forward PWM
+    throttle_limit: 0.3        # hard safety cap, fraction of full throttle
+    watchdog_timeout: 0.25     # s without /cmd before going neutral
+
+joy_node:
+  ros__parameters:
+    device_id: 0
+    deadzone: 0.05
+    # Republish steadily so a quiet pad is distinguishable from a dropped one.
+    # teleop_joy's joy_timeout is meaningless if this is 0.0.
+    autorepeat_rate: 20.0
+
+teleop_joy:
+  ros__parameters:
+    steer_axis: 0
+    throttle_axis: 4
+    steer_scale: -1.0
+    throttle_scale: 1.0
+    max_speed: 1.0
+    max_steering_angle: 0.4
+    publish_rate: 20.0
+    joy_timeout: 0.5
+
+camera:
+  ros__parameters:
+    # The CSI stack owns /dev/video0-7 and 19-37, so a USB cam lands on the
+    # first free index. Confirm with `v4l2-ctl --list-devices` and prefer the
+    # stable /dev/v4l/by-id/... path -- bare indices move between reboots.
+    video_device: /dev/video8
+    image_size: [160, 120]
+    pixel_format: YUYV
+    output_encoding: rgb8
+    camera_frame_id: camera_link
+
+# imu_node:            # MPU-6050, add when wired (bus 1, 0x68)
+#   ros__parameters:
+#     rate_hz: 100
+#     frame_id: imu_link
+
+# encoder_node:        # wheel encoders via lgpio
+#   ros__parameters:
+#     rate_hz: 50
