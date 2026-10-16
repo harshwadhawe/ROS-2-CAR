@@ -56,8 +56,10 @@ def generate_launch_description():
              condition=IfCondition(LaunchConfiguration('use_camera'))),
 
         # Live feed in a browser: http://<pi>:8080/stream?topic=/camera/image_raw
+        # It ignores SIGINT and SIGTERM, so don't let it stall Ctrl-C for 15 s.
         Node(package='web_video_server', executable='web_video_server',
              name='web_video_server', output='screen',
+             sigterm_timeout='1', sigkill_timeout='1',
              condition=IfCondition(LaunchConfiguration('use_camera'))),
 
         ExecuteProcess(

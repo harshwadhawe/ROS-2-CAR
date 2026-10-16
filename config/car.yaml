@@ -15,7 +15,9 @@ actuator_node:
     throttle_reverse_pwm: 340
     max_steering_angle: 0.4    # rad at full lock
     max_speed: 2.0             # m/s mapped to full forward PWM
-    throttle_limit: 0.3        # hard safety cap, fraction of full throttle
+    # Hard cap, fraction of full throttle. camera_setup/plant.json: the car
+    # starts moving near 0.17 (~0.7 m/s) and does ~1.0 m/s at 0.205.
+    throttle_limit: 0.2
     watchdog_timeout: 0.25     # s without /cmd before going neutral
 
 joy_node:
@@ -32,7 +34,7 @@ teleop_joy:
     throttle_axis: 4
     steer_scale: 1.0         # joy_node reports stick-left as +1 = REP-103 left
     throttle_scale: 1.0
-    max_speed: 1.0
+    max_speed: 0.4           # full stick = throttle_limit x actuator max_speed
     max_steering_angle: 0.4
     publish_rate: 20.0
     joy_timeout: 0.5
@@ -53,7 +55,7 @@ camera:
 
 lane_follower:
   ros__parameters:
-    speed: 0.3               # m/s, open-loop: drops as the pack drains
+    speed: 0.36              # m/s nominal = 0.18 throttle, just above moving (0.17)
     # From camera_setup (same car and track): 450 mm was the pure-pursuit
     # lookahead there; 0.264 m reproduces its measured CURV_PER_STEER of
     # 1.603 1/m per unit steering at our 0.4 rad lock (tan(0.4)/1.603).
