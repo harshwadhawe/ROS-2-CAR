@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from pistar_car.lane_follower import ground_grid, road_target, pure_pursuit
+from pistar_car.lane_follower import ground_grid, road_target, pure_pursuit, track_region
 
 W, H, CAM_H, PITCH, FOV = 160, 120, 0.15, math.radians(20), math.radians(60)
 X, Y = ground_grid(W, H, CAM_H, PITCH, FOV)
@@ -47,6 +47,17 @@ def test_geometry():
     near = road_mask() & (X < L - 2 * BAND)
     assert road_target(near, X, Y, L, BAND, MIN_PX) is None
     assert road_target(np.zeros((H, W), bool), X, Y, L, BAND, MIN_PX) is None
+
+    # Grey carpet as dark as the track, but beyond a beige strip: dropped, so
+    # the target is the same as with the track alone.
+    track = road_mask()
+    with np.errstate(invalid='ignore'):
+        grey = (Y > ROAD_W / 2 + 0.15) & (X < 3.0)
+    kept = track_region(track | grey)
+    assert not (kept & grey).any() and (kept == track).all()
+
+    # Nothing dark under the car: no region, so the node stops.
+    assert not track_region(np.zeros((H, W), bool)).any()
 
     print('lane_follower geometry: all checks passed')
 

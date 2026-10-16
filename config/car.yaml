@@ -63,7 +63,10 @@ lane_follower:
     cam_height: 0.15         # m, lens above floor
     cam_pitch_deg: 20.0      # tilt down from horizontal
     cam_hfov_deg: 60.0       # lens horizontal field of view
-    road_v_max: 70           # HSV value <= this is road; tune on the debug image
+    # Black track on beige carpet: V histogram has road at 20-60, beige at
+    # 220+, almost nothing between. Grey carpet is dark too; connectivity to
+    # the floor ahead of the car excludes it, not this threshold.
+    road_v_max: 100          # HSV value <= this is dark
     min_pixels: 30           # fewer road pixels on the arc = lost, stop
 
 # imu_node:            # MPU-6050, add when wired (bus 1, 0x68)

@@ -4,16 +4,17 @@ Subscribes: camera/image_raw (sensor_msgs/Image)
 Publishes:  cmd (ackermann_msgs/AckermannDrive)
             lane_follower/debug (sensor_msgs/Image), only while someone watches
 
-Each frame: threshold the dark track, keep the road pixels whose floor
-distance is within `band` of lookahead_distance (an arc across the road),
-average their floor positions, and steer pure pursuit through that point. Too
-few road pixels on the arc means speed 0 is published, so a lost track stops
-the car rather than coasting.
+Each frame: threshold the dark track, keep only the dark region connected to
+the floor just ahead of the car, take its pixels whose floor distance is
+within `band` of lookahead_distance (an arc across the road), average their
+floor positions, and steer pure pursuit through that point. Too few road
+pixels on the arc means speed 0 is published, so a lost track stops the car
+rather than coasting.
 
-Why the road and not the yellow tape: on this track the tape is a ~26 px band
-and 85% of frames show only one edge, so edge-pair methods have nothing to
-pair. Scored against human steering on 7,500 frames, road centroid r=+0.52 vs
-sliding windows r=+0.15 (camera_setup/lane_detection_track.ipynb).
+The track is black on beige carpet, ringed by grey carpet that is just as dark.
+Brightness cannot tell grey carpet from track; connectivity can, because beige
+always lies between them. Road centroid also beat edge methods on the old
+taped track (r=+0.52 vs +0.15, camera_setup/lane_detection_track.ipynb).
 
 Camera geometry (height, pitch, hfov) must be measured on the car; tune it in
 config/car.yaml while watching the debug image with the car on a stand.
@@ -40,6 +41,17 @@ def ground_grid(width, height, cam_height, pitch, hfov):
     down = b * math.cos(pitch) + math.sin(pitch)
     t = np.where(down > 1e-6, cam_height / np.where(down > 1e-6, down, 1.0), np.nan)
     return t * (math.cos(pitch) - b * math.sin(pitch)), -t * a
+
+
+def track_region(dark, seed_rows=20):
+    """The dark region under the car: the connected component owning most of
+    the bottom-centre patch. Dark areas cut off by lighter floor are dropped."""
+    h, w = dark.shape
+    _, labels = cv2.connectedComponents(dark.astype(np.uint8), connectivity=4)
+    seed = labels[h - seed_rows:, w // 4:3 * w // 4]
+    counts = np.bincount(seed.ravel(), minlength=2)
+    counts[0] = 0                      # label 0 is "not dark"
+    return labels == counts.argmax() if counts.max() else np.zeros_like(dark)
 
 
 def road_target(road, X, Y, lookahead, band, min_pixels):
@@ -71,7 +83,7 @@ class LaneFollower(Node):
             'cam_height': 0.15,            # m above floor -- measure
             'cam_pitch_deg': 20.0,         # down from horizontal -- measure
             'cam_hfov_deg': 60.0,          # lens field of view -- measure
-            'road_v_max': 70,              # HSV value at or below = road (0-255)
+            'road_v_max': 100,             # HSV value at or below = dark (0-255)
             'min_pixels': 30,              # fewer road pixels on the arc = lost
         }
         for name, value in defaults.items():
@@ -94,7 +106,7 @@ class LaneFollower(Node):
                                     math.radians(self.p['cam_pitch_deg']),
                                     math.radians(self.p['cam_hfov_deg']))
         X, Y = self.grid
-        road = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 2] <= self.p['road_v_max']
+        road = track_region(cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 2] <= self.p['road_v_max'])
         target = road_target(road, X, Y, self.p['lookahead_distance'],
                              self.p['band'], self.p['min_pixels'])
 
