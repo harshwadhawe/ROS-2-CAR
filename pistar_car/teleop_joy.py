@@ -44,9 +44,9 @@ class TeleopJoy(Node):
         defaults = {
             'steer_axis': 0,           # left stick X
             'throttle_axis': 4,        # right stick Y
-            # Signs are measured on the real pad, not derived: steering needed
-            # inverting, throttle did not. Flip either if a pad disagrees.
-            'steer_scale': -1.0,
+            # Signs measured on the real pad: with joy_node, stick-left is +1,
+            # which is already REP-103 left. Flip either if a pad disagrees.
+            'steer_scale': 1.0,
             'throttle_scale': 1.0,
             'max_speed': 1.0,
             'max_steering_angle': 0.4,
