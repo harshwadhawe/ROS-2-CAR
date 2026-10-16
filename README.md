@@ -22,9 +22,12 @@ go to `~/bags/drive_<timestamp>/`. Inspect with `ros2 bag info`, replay with
 
 ## Autonomous (camera pure pursuit)
 `ros2 launch pistar_car car.launch.py use_camera:=true use_follower:=true`
-Follows the centroid of the dark road; stops when too little road is on the lookahead arc. Measure the camera block of
-`lane_follower` in `config/car.yaml` first, on a stand, watching
-`/lane_follower/debug` in `rqt_image_view`.
+Starts in MANUAL (sticks drive). Square on the pad toggles AUTO, where
+lane_follower drives; square again returns to manual. The pad must stay
+connected in AUTO: if it drops, the car stops and returns in manual. The
+follower steers to the centroid of the dark track and stops when it loses it.
+Measure the camera block of `lane_follower` in `config/car.yaml` first, on a
+stand, watching `/lane_follower/debug`.
 
 ## Adding a sensor
 1. Add `pistar_car/<sensor>_node.py`.

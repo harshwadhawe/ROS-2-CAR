@@ -1,5 +1,5 @@
 """Self-check for the joy axis mapping. Run: colcon test, or python3 test/test_teleop_joy.py"""
-from pistar_car.teleop_joy import scaled
+from pistar_car.teleop_joy import scaled, toggled
 
 LIMIT = 0.4
 
@@ -23,6 +23,14 @@ def test_axis_mapping():
     assert scaled([], 4, -1.0, LIMIT) == 0.0
     assert scaled([0.0, 0.0], 4, -1.0, LIMIT) == 0.0
     assert scaled([1.0], -1, -1.0, LIMIT) == 0.0
+
+    # Square flips the mode on the press edge only: holding it, or releasing
+    # it, must not flip again.
+    assert toggled(False, False, True) is True          # press: manual -> auto
+    assert toggled(True, True, True) is True            # held: stays auto
+    assert toggled(True, True, False) is True           # release: stays auto
+    assert toggled(True, False, True) is False          # press again: back to manual
+    assert toggled(False, False, False) is False
 
     print('teleop_joy mapping: all checks passed')
 

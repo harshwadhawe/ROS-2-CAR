@@ -5,7 +5,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition
-from launch.substitutions import AndSubstitution, LaunchConfiguration, NotSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -28,8 +28,8 @@ def generate_launch_description():
         DeclareLaunchArgument('use_camera', default_value='false'),
         DeclareLaunchArgument('use_imu', default_value='false'),
         DeclareLaunchArgument('use_joy', default_value='true'),
-        # Autonomous mode. Turns teleop_joy off so two nodes never fight
-        # over /cmd; needs use_camera:=true to see anything.
+        # Starts lane_follower on /auto_cmd; square on the pad hands it /cmd.
+        # Needs use_camera:=true to see anything and use_joy for the switch.
         DeclareLaunchArgument('use_follower', default_value='false'),
         # Training data: camera frames + the /cmd driving them, as a rosbag.
         DeclareLaunchArgument('record', default_value='false'),
@@ -43,12 +43,10 @@ def generate_launch_description():
 
         Node(package='pistar_car', executable='teleop_joy', name='teleop_joy',
              parameters=[cfg], output='screen',
-             condition=IfCondition(AndSubstitution(
-                 LaunchConfiguration('use_joy'),
-                 NotSubstitution(LaunchConfiguration('use_follower'))))),
+             condition=IfCondition(LaunchConfiguration('use_joy'))),
 
         Node(package='pistar_car', executable='lane_follower', name='lane_follower',
-             parameters=[cfg], output='screen',
+             parameters=[cfg], output='screen', remappings=[('cmd', 'auto_cmd')],
              condition=IfCondition(LaunchConfiguration('use_follower'))),
 
         # Not camera_ros: the apt libcamera expects hyphenated rp1-cfe entity

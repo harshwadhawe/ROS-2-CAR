@@ -1,7 +1,13 @@
-"""Gamepad teleop. Sticks drive the car directly, like an RC transmitter.
+"""Gamepad teleop and the manual/auto switch. The pad owns the car.
 
 Subscribes: joy (sensor_msgs/Joy)
+            auto_cmd (ackermann_msgs/AckermannDrive) from lane_follower
 Publishes:  cmd (ackermann_msgs/AckermannDrive) at 20 Hz.
+
+Starts in MANUAL: sticks drive, like an RC transmitter. Square toggles AUTO,
+where auto_cmd is forwarded instead; square again returns to manual. Auto
+still needs a live pad: if the pad drops, the car stops and comes back in
+manual. A stale auto_cmd (follower dead or lost) is sent as a stop.
 
 There is no deadman button: centred sticks mean stopped. Two things stop a
 runaway instead. If the pad drops off Bluetooth, joy_node goes quiet and the
@@ -27,6 +33,11 @@ def scaled(axes, index, scale, limit):
     return max(-limit, min(limit, value * scale * limit))
 
 
+def toggled(auto, was_down, down):
+    """Flip the mode on the press edge only, so a held button flips once."""
+    return not auto if down and not was_down else auto
+
+
 class TeleopJoy(Node):
     def __init__(self):
         super().__init__('teleop_joy')
@@ -44,6 +55,8 @@ class TeleopJoy(Node):
             # message cached. Without this the car keeps the held throttle.
             # Needs joy_node's autorepeat_rate non-zero to be meaningful.
             'joy_timeout': 0.5,
+            'mode_button': 3,          # square on hid-playstation (cross 0, circle 1, triangle 2)
+            'auto_timeout': 0.25,      # older auto_cmd than this is sent as a stop
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -52,16 +65,32 @@ class TeleopJoy(Node):
         self.joy = None
         self.last_joy = 0.0
         self.live = False
+        self.auto = False
+        self.button_down = False
+        self.auto_cmd = None
+        self.last_auto = 0.0
         self.pub = self.create_publisher(AckermannDrive, 'cmd', 10)
         self.create_subscription(Joy, 'joy', self.on_joy, 10)
+        self.create_subscription(AckermannDrive, 'auto_cmd', self.on_auto, 10)
         self.create_timer(1.0 / self.p['publish_rate'], self.tick)
         self.get_logger().info(
             f"Steering axis {self.p['steer_axis']}, throttle axis "
-            f"{self.p['throttle_axis']}. Centre the sticks to stop.")
+            f"{self.p['throttle_axis']}. MANUAL; square toggles AUTO.")
 
     def on_joy(self, msg):
         self.joy = msg
         self.last_joy = time.monotonic()
+        i = self.p['mode_button']
+        down = 0 <= i < len(msg.buttons) and msg.buttons[i] == 1
+        auto = toggled(self.auto, self.button_down, down)
+        self.button_down = down
+        if auto != self.auto:
+            self.auto = auto
+            self.get_logger().info('AUTO: lane follower driving.' if auto else 'MANUAL: sticks driving.')
+
+    def on_auto(self, msg):
+        self.auto_cmd = msg
+        self.last_auto = time.monotonic()
 
     def tick(self):
         if self.joy is None:
@@ -70,10 +99,16 @@ class TeleopJoy(Node):
             if self.live:
                 self.get_logger().warn('No joy messages, pad dropped? Stopping.')
                 self.live = False
+                self.auto = False      # a reconnected pad comes back in manual
             return
         if not self.live:
             self.get_logger().info('Pad live, driving.')
             self.live = True
+
+        if self.auto:
+            fresh = time.monotonic() - self.last_auto <= self.p['auto_timeout']
+            self.pub.publish(self.auto_cmd if fresh else AckermannDrive())
+            return
 
         msg = AckermannDrive()
         msg.steering_angle = scaled(self.joy.axes, self.p['steer_axis'],
