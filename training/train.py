@@ -9,7 +9,7 @@ never straddle the split. Train-time flip (steer negated) and brightness
 jitter; nothing else.
 
 Writes policy.onnx (raw RGB 0-255, 1x3x120x160 -> steer rad, normalisation
-baked in so the Pi only feeds pixels) and metrics.json.
+baked in so the Pi only feeds pixels), policy.pt and metrics.json.
 """
 import argparse
 import json
@@ -46,7 +46,9 @@ class Policy(nn.Module):
         self.register_buffer('std', torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1) * 255)
 
     def forward(self, x):       # x: N x 3 x H x W, RGB 0-255
-        return torch.tanh(self.head(self.features((x - self.mean) / self.std)))[:, 0] * MAX_STEER
+        # reshape, not [:, 0]: indexing exports as Gather, which OpenCV's DNN
+        # mis-sizes for a batch of one.
+        return torch.tanh(self.head(self.features((x - self.mean) / self.std))).reshape(-1) * MAX_STEER
 
 
 def load(paths, min_road):
@@ -144,6 +146,7 @@ def main():
     np.savez(os.path.join(a.out, 'val_pred.npz'), pred=pred, y=y, geom=va['geom'], bag=va['bag'])
 
     model = model.cpu().eval()
+    torch.save(model.state_dict(), os.path.join(a.out, 'policy.pt'))
     torch.onnx.export(model, torch.zeros(1, 3, 120, 160), os.path.join(a.out, 'policy.onnx'),
                       input_names=['image'], output_names=['steer'], opset_version=11, dynamo=False)
     print(json.dumps({k: v for k, v in report.items() if k != 'policy_per_bag'}, indent=1))
