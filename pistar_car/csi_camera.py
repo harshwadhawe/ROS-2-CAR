@@ -18,6 +18,14 @@ from cv_bridge import CvBridge
 
 W, H, BYTES_PER_LINE = 640, 480, 800   # 10-bit packed: 4 px in 5 bytes
 FRAME_BYTES = BYTES_PER_LINE * H
+# Sensor line timing at 640x480 (read-only pixel_rate and horizontal_blanking
+# controls). Frame rate is set by stretching vertical blanking.
+PIXEL_RATE, LINE_PIXELS = 58_333_000, W + 1212
+
+
+def vblank_for(fps):
+    """vertical_blanking lines that make the sensor run at fps."""
+    return max(24, min(32287, round(PIXEL_RATE / (LINE_PIXELS * fps)) - H))
 
 
 def debayer(raw, out_size):
@@ -27,7 +35,7 @@ def debayer(raw, out_size):
                       interpolation=cv2.INTER_AREA)
 
 
-def configure(auto, gain, exposure):
+def configure(fps, auto, gain, exposure):
     # ponytail: media0/subdev2 are the indices this Pi enumerates; look the
     # entities up by name if a second camera or kernel update reorders them.
     for cmd in (
@@ -35,6 +43,7 @@ def configure(auto, gain, exposure):
         ['media-ctl', '-d', '/dev/media0', '-V', f'"csi2":0 [fmt:SGBRG10_1X10/{W}x{H} field:none]'],
         ['media-ctl', '-d', '/dev/media0', '-V', f'"csi2":4 [fmt:SGBRG10_1X10/{W}x{H} field:none]'],
         ['v4l2-ctl', '-d', '/dev/video0', f'--set-fmt-video=width={W},height={H},pixelformat=pGAA'],
+        ['v4l2-ctl', '-d', '/dev/v4l-subdev2', '-c', f'vertical_blanking={vblank_for(fps)}'],
         ['v4l2-ctl', '-d', '/dev/v4l-subdev2', '-c', f'exposure={exposure},analogue_gain={gain}'],
         # auto_exposure is a menu: 0 = auto, 1 = manual.
         ['v4l2-ctl', '-d', '/dev/v4l-subdev2', '-c',
@@ -49,6 +58,7 @@ class CsiCamera(Node):
         super().__init__('camera')
         self.declare_parameter('width', 160)
         self.declare_parameter('height', 120)
+        self.declare_parameter('fps', 20.0)            # sensor-side, ~1-62
         # Sensor-side auto exposure/gain/white balance. Manual values below
         # only apply with this off.
         self.declare_parameter('auto_exposure', True)
@@ -57,7 +67,7 @@ class CsiCamera(Node):
         self.declare_parameter('frame_id', 'camera_link')
         p = lambda n: self.get_parameter(n).value
         self.size, self.frame_id = (p('width'), p('height')), p('frame_id')
-        configure(p('auto_exposure'), p('analogue_gain'), p('exposure'))
+        configure(p('fps'), p('auto_exposure'), p('analogue_gain'), p('exposure'))
         self.pub = self.create_publisher(Image, '~/image_raw', 1)
         self.bridge = CvBridge()
 
@@ -67,7 +77,7 @@ class CsiCamera(Node):
         # Blocking reads live on their own thread so spin() can still serve
         # parameter and introspection requests.
         threading.Thread(target=self.stream, daemon=True).start()
-        self.get_logger().info(f'Streaming {self.size[0]}x{self.size[1]}.')
+        self.get_logger().info(f"Streaming {self.size[0]}x{self.size[1]} at {p('fps')} Hz.")
 
     def stream(self):
         while rclpy.ok():

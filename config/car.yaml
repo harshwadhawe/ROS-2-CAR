@@ -43,6 +43,7 @@ camera:
     # white balance; set auto_exposure false to use the manual pair below.
     width: 160
     height: 120
+    fps: 20.0                # set on the sensor (vertical blanking), 1-62
     auto_exposure: true
     analogue_gain: 128       # 16-1023, manual only
     exposure: 500            # 4-500 lines, manual only

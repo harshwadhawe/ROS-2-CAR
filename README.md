@@ -15,6 +15,11 @@ ROS 2 Jazzy base stack for the Pi Star Lab RC car.
 `ros2 launch pistar_car car.launch.py use_camera:=true`, then open
 `http://<pi>:8080/stream?topic=/camera/image_raw` (or `/lane_follower/debug`).
 
+## Record training data
+Add `record:=true` (with `use_camera:=true`): `/camera/image_raw` and `/cmd`
+go to `~/bags/drive_<timestamp>/`. Inspect with `ros2 bag info`, replay with
+`ros2 bag play`, read in Python with `rosbag2_py`.
+
 ## Autonomous (camera pure pursuit)
 `ros2 launch pistar_car car.launch.py use_camera:=true use_follower:=true`
 Stops when no yellow tape is seen. Measure the camera block of

@@ -1,7 +1,7 @@
 """Self-check for the raw Bayer unpack. Run: colcon test, or python3 test/test_csi_camera.py"""
 import numpy as np
 
-from pistar_car.csi_camera import debayer, FRAME_BYTES, W, H, BYTES_PER_LINE
+from pistar_car.csi_camera import debayer, vblank_for, FRAME_BYTES, W, H, BYTES_PER_LINE, PIXEL_RATE, LINE_PIXELS
 
 
 def test_unpack():
@@ -12,6 +12,13 @@ def test_unpack():
     out = debayer(raw.tobytes(), (160, 120))
     assert out.shape == (120, 160, 3)
     assert abs(int(out.min()) - 128) <= 1 and abs(int(out.max()) - 128) <= 1, (out.min(), out.max())
+
+    # Minimum blanking is the sensor's native ~62.5 Hz (measured); 20 Hz must
+    # land within half a percent, and silly rates clamp to the control range.
+    assert vblank_for(1000) == 24
+    fps = PIXEL_RATE / (LINE_PIXELS * (H + vblank_for(20.0)))
+    assert abs(fps - 20.0) < 0.1, fps
+    assert vblank_for(0.1) == 32287
 
     print('csi_camera unpack: all checks passed')
 

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -30,6 +31,8 @@ def generate_launch_description():
         # Autonomous mode. Turns teleop_joy off so two nodes never fight
         # over /cmd; needs use_camera:=true to see anything.
         DeclareLaunchArgument('use_follower', default_value='false'),
+        # Training data: camera frames + the /cmd driving them, as a rosbag.
+        DeclareLaunchArgument('record', default_value='false'),
 
         Node(package='pistar_car', executable='actuator_node', name='actuator_node',
              parameters=[cfg], output='screen'),
@@ -58,6 +61,13 @@ def generate_launch_description():
         Node(package='web_video_server', executable='web_video_server',
              name='web_video_server', output='screen',
              condition=IfCondition(LaunchConfiguration('use_camera'))),
+
+        ExecuteProcess(
+            cmd=['ros2', 'bag', 'record', '-o',
+                 os.path.expanduser(datetime.now().strftime('~/bags/drive_%Y%m%d_%H%M%S')),
+                 '/camera/image_raw', '/cmd'],
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('record'))),
 
         # Node(package='pistar_car', executable='imu_node', name='imu_node',
         #      parameters=[cfg], output='screen',
