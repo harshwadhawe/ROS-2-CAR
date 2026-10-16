@@ -58,10 +58,11 @@ lane_follower:
     lookahead_distance: 0.45 # m
     band: 0.1                # m either side of the lookahead arc
     wheelbase: 0.264         # m, effective
-    # Still guesses -- measure on the car. Check: a mark on the floor 0.45 m
-    # ahead should sit on the green arc in /lane_follower/debug.
-    cam_height: 0.15         # m, lens above floor
-    cam_pitch_deg: 20.0      # tilt down from horizontal
+    # Height and tilt as estimated on the car (170 mm, 10-15 deg); hfov is
+    # still a guess. Check: a mark on the floor 0.45 m ahead should sit on the
+    # green arc in /lane_follower/debug -- nudge cam_pitch_deg until it does.
+    cam_height: 0.17         # m, lens above floor
+    cam_pitch_deg: 12.5      # tilt down from horizontal, middle of 10-15
     cam_hfov_deg: 60.0       # lens horizontal field of view
     # Black track on beige carpet: V histogram has road at 20-60, beige at
     # 220+, almost nothing between. Grey carpet is dark too; connectivity to

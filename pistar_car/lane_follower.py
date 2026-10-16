@@ -80,8 +80,8 @@ class LaneFollower(Node):
             'band': 0.1,                   # m either side of the lookahead arc
             'wheelbase': 0.264,            # m, from measured curvature, see car.yaml
             'max_steering_angle': 0.4,
-            'cam_height': 0.15,            # m above floor -- measure
-            'cam_pitch_deg': 20.0,         # down from horizontal -- measure
+            'cam_height': 0.17,            # m above floor
+            'cam_pitch_deg': 12.5,         # down from horizontal
             'cam_hfov_deg': 60.0,          # lens field of view -- measure
             'road_v_max': 100,             # HSV value at or below = dark (0-255)
             'min_pixels': 30,              # fewer road pixels on the arc = lost
