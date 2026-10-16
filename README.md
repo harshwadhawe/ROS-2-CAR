@@ -22,10 +22,16 @@ Stuck? [troubleshooting](docs/troubleshooting.md). Topics, design notes:
 | **Separate 5 V / 5 A supply for the Pi** | sharing the ESC's battery browns it out and reboots it |
 | A stand that lifts the wheels | for every first run of a change |
 
-**Car software**
-- Ubuntu 24.04 (Raspberry Pi image, kernel 6.8 raspi) and ROS 2 Jazzy (`ros-jazzy-ros-base`).
+**Car software** (exact commands in [install](docs/install.md))
+- Ubuntu 24.04 (Raspberry Pi image, kernel 6.8 raspi) with camera and I2C enabled in `config.txt` (the default).
+- ROS 2 Jazzy (`ros-jazzy-ros-base`) plus: `ackermann-msgs`, `joy`, `cv-bridge`,
+  `web-video-server`, `rosbag2` + `rosbag2-storage-mcap`.
+- System: `python3-opencv`, `python3-smbus2`, `python3-yaml`, `v4l-utils`, `i2c-tools`, `git`, colcon, pytest.
+- pip (user): `ai-edge-litert==2.2.0` with `numpy<2`, only for `auto:=policy`.
 - Internet on the Pi for `apt`, `pip` and `git clone` (repo is public, no login).
-- The apt and pip packages in [install](docs/install.md).
+- **Not** libcamera, `camera_ros` or `rpicam-apps`: they cannot see this camera on
+  this kernel, and anything else holding the camera blocks `csi_camera`
+  ([why, and cleanup](docs/install.md#libcamera-do-not-install)).
 
 **Training machine** (Mac or Linux, not the Pi)
 - Python 3.12+, ~3 GB free for the venv and data.
