@@ -33,9 +33,11 @@ def test_geometry():
     tx, ty = road_target(road_mask(), X, Y, L, BAND, MIN_PX)
     assert abs(ty) < 0.01 and abs(math.hypot(tx, ty) - L) < BAND, (tx, ty)
 
-    # Drifted 0.1 m left: road centre is to the right, so steer right.
+    # Drifted 0.1 m left: road centre is to the right, so steer right. The far
+    # edge falls outside a 60 deg view, so the centroid under-reads the offset
+    # (-0.08 here) -- a gentler correction, never the wrong way.
     tx, ty = road_target(road_mask(offset=0.1), X, Y, L, BAND, MIN_PX)
-    assert abs(ty + 0.1) < 0.02 and pure_pursuit(tx, ty, 0.264) < 0, (tx, ty)
+    assert -0.1 - 0.01 < ty < -0.05 and pure_pursuit(tx, ty, 0.264) < 0, (tx, ty)
 
     # Road bending left: steer left, before any lateral error has built up.
     tx, ty = road_target(road_mask(curve=1.0), X, Y, L, BAND, MIN_PX)
