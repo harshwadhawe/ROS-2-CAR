@@ -39,12 +39,13 @@ teleop_joy:
 
 camera:
   ros__parameters:
-    # csi_camera on the OV5647 ribbon cam. No auto exposure: tune these to
-    # the track lighting until the tape is clearly yellow in the debug image.
+    # csi_camera on the OV5647 ribbon cam. Sensor auto exposure, gain and
+    # white balance; set auto_exposure false to use the manual pair below.
     width: 160
     height: 120
-    analogue_gain: 400       # 16-1023
-    exposure: 500            # 4-500
+    auto_exposure: true
+    analogue_gain: 128       # 16-1023, manual only
+    exposure: 500            # 4-500 lines, manual only
     frame_id: camera_link
 
 lane_follower:
