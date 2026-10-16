@@ -23,6 +23,7 @@ setup(
             'actuator_node = pistar_car.actuator_node:main',
             'teleop_keyboard = pistar_car.teleop_keyboard:main',
             'teleop_joy = pistar_car.teleop_joy:main',
+            'lane_follower = pistar_car.lane_follower:main',
         ],
     },
 )

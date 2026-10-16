@@ -4,7 +4,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -27,6 +27,9 @@ def generate_launch_description():
         DeclareLaunchArgument('use_camera', default_value='false'),
         DeclareLaunchArgument('use_imu', default_value='false'),
         DeclareLaunchArgument('use_joy', default_value='true'),
+        # Autonomous mode. Turns teleop_joy off so two nodes never fight
+        # over /cmd; needs use_camera:=true to see anything.
+        DeclareLaunchArgument('use_follower', default_value='false'),
 
         Node(package='pistar_car', executable='actuator_node', name='actuator_node',
              parameters=[cfg], output='screen'),
@@ -37,7 +40,13 @@ def generate_launch_description():
 
         Node(package='pistar_car', executable='teleop_joy', name='teleop_joy',
              parameters=[cfg], output='screen',
-             condition=IfCondition(LaunchConfiguration('use_joy'))),
+             condition=IfCondition(PythonExpression([
+                 LaunchConfiguration('use_joy'), ' and not ',
+                 LaunchConfiguration('use_follower')]))),
+
+        Node(package='pistar_car', executable='lane_follower', name='lane_follower',
+             parameters=[cfg], output='screen',
+             condition=IfCondition(LaunchConfiguration('use_follower'))),
 
         # v4l2_camera, not camera_ros: the packaged libcamera 0.7.2 expects
         # hyphenated rp1-cfe entity names that kernel 6.8 does not provide,

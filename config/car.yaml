@@ -48,6 +48,22 @@ camera:
     output_encoding: rgb8
     camera_frame_id: camera_link
 
+lane_follower:
+  ros__parameters:
+    speed: 0.3               # m/s; actuator throttle_limit still caps it
+    lookahead_distance: 0.5  # m; longer = smoother, cuts corners more
+    # Measure these on the car -- the ground projection is only as good as
+    # they are. Check: a tape mark 0.5 m ahead should land at the debug
+    # image's target when lookahead_distance is 0.5.
+    wheelbase: 0.26          # m, front axle to rear axle
+    cam_height: 0.15         # m, lens above floor
+    cam_pitch_deg: 20.0      # tilt down from horizontal
+    cam_hfov_deg: 60.0       # webcam horizontal field of view
+    lane_width: 0.5          # m between the inner edges of the yellow tape
+    min_path_points: 3
+    hsv_low: [20, 80, 80]    # yellow; check the mask on the debug image
+    hsv_high: [40, 255, 255]
+
 # imu_node:            # MPU-6050, add when wired (bus 1, 0x68)
 #   ros__parameters:
 #     rate_hz: 100
