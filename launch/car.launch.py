@@ -4,7 +4,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import AndSubstitution, LaunchConfiguration, NotSubstitution
 from launch_ros.actions import Node
 
 
@@ -40,9 +40,9 @@ def generate_launch_description():
 
         Node(package='pistar_car', executable='teleop_joy', name='teleop_joy',
              parameters=[cfg], output='screen',
-             condition=IfCondition(PythonExpression([
-                 LaunchConfiguration('use_joy'), ' and not ',
-                 LaunchConfiguration('use_follower')]))),
+             condition=IfCondition(AndSubstitution(
+                 LaunchConfiguration('use_joy'),
+                 NotSubstitution(LaunchConfiguration('use_follower'))))),
 
         Node(package='pistar_car', executable='lane_follower', name='lane_follower',
              parameters=[cfg], output='screen',
