@@ -1,62 +1,50 @@
-"""Self-check for lane geometry and pure pursuit. Run: colcon test, or python3 test/test_lane_follower.py"""
+"""Self-check for road-centroid geometry and pure pursuit. Run: colcon test, or python3 test/test_lane_follower.py"""
 import math
 
 import numpy as np
 
-from pistar_car.lane_follower import pixel_to_ground, pure_pursuit, lane_path
+from pistar_car.lane_follower import ground_grid, road_target, pure_pursuit
 
 W, H, CAM_H, PITCH, FOV = 160, 120, 0.15, math.radians(20), math.radians(60)
+X, Y = ground_grid(W, H, CAM_H, PITCH, FOV)
+ROAD_W, L, BAND, MIN_PX = 0.392, 0.45, 0.1, 30
 
 
-def to_ground(u, v):
-    return pixel_to_ground(u, v, W, H, CAM_H, PITCH, FOV)
-
-
-def lane_mask(offset, lane_width=0.5):
-    """Render tape edges for a car sitting `offset` m left of lane centre."""
-    m = np.zeros((H, W), np.uint8)
-    for v in range(H):
-        for u in range(W):
-            g = to_ground(u, v)
-            if g and g[0] < 3.0:
-                for edge in (lane_width / 2, -lane_width / 2):
-                    if abs(g[1] - (edge - offset)) < 0.02:
-                        m[v, u] = 255
-    return m
+def road_mask(offset=0.0, curve=0.0):
+    """Road strip for a car `offset` m left of centre; `curve` 1/m bends it left."""
+    with np.errstate(invalid='ignore'):
+        centre = -offset + 0.5 * curve * X ** 2
+        return (np.abs(Y - centre) < ROAD_W / 2) & (X < 3.0)
 
 
 def test_geometry():
-    # Image centre looks down the optical axis: straight ahead, on the floor at
-    # cam_height / tan(pitch).
-    x, y = to_ground(W / 2, H / 2)
-    assert abs(x - CAM_H / math.tan(PITCH)) < 1e-9 and abs(y) < 1e-9
-    # Left of centre is +left (REP-103); above the horizon never hits the floor.
-    assert to_ground(0, H - 1)[1] > 0
-    assert to_ground(W / 2, 0) is None or to_ground(W / 2, 0)[0] > 2.0
+    # Image centre looks down the optical axis, landing cam_height/tan(pitch) ahead.
+    assert abs(X[H // 2, W // 2] - CAM_H / math.tan(PITCH)) < 1e-9
+    assert abs(Y[H // 2, W // 2]) < 1e-9
+    # Left of the image is +left (REP-103); the top rows are sky, not floor.
+    assert Y[H - 1, 0] > 0 > Y[H - 1, W - 1]
+    assert np.isnan(X[0, W // 2])
 
-    # Pure pursuit: dead ahead is straight, target to the left steers left.
-    assert pure_pursuit(1.0, 0.0, 0.26) == 0.0
-    assert pure_pursuit(1.0, 0.2, 0.26) > 0
-    assert pure_pursuit(1.0, -0.2, 0.26) < 0
+    # Pure pursuit: dead ahead is straight, a target to the left steers left.
+    assert pure_pursuit(1.0, 0.0, 0.264) == 0.0
+    assert pure_pursuit(1.0, 0.2, 0.264) > 0 > pure_pursuit(1.0, -0.2, 0.264)
 
-    # Centred in the lane: path runs straight down the middle.
-    path = lane_path(lane_mask(0.0), to_ground, 0.5)
-    assert len(path) > 5
-    assert all(abs(py) < 0.03 for _, py in path), path
+    # Centred on a straight: target dead ahead at the lookahead distance.
+    tx, ty = road_target(road_mask(), X, Y, L, BAND, MIN_PX)
+    assert abs(ty) < 0.01 and abs(math.hypot(tx, ty) - L) < BAND, (tx, ty)
 
-    # Car drifted left: lane centre is to the right, so steer right (negative).
-    path = lane_path(lane_mask(0.1), to_ground, 0.5)
-    tx, ty = min(path, key=lambda q: abs(math.hypot(*q) - 0.5))
-    assert abs(ty + 0.1) < 0.03 and pure_pursuit(tx, ty, 0.26) < 0
+    # Drifted 0.1 m left: road centre is to the right, so steer right.
+    tx, ty = road_target(road_mask(offset=0.1), X, Y, L, BAND, MIN_PX)
+    assert abs(ty + 0.1) < 0.02 and pure_pursuit(tx, ty, 0.264) < 0, (tx, ty)
 
-    # Only the right tape visible: fall back to half a lane width left of it.
-    m = lane_mask(0.0)
-    m[:, :W // 2] = 0
-    path = lane_path(m, to_ground, 0.5)
-    assert path and all(abs(py) < 0.03 for _, py in path), path
+    # Road bending left: steer left, before any lateral error has built up.
+    tx, ty = road_target(road_mask(curve=1.0), X, Y, L, BAND, MIN_PX)
+    assert pure_pursuit(tx, ty, 0.264) > 0, (tx, ty)
 
-    # Nothing yellow: no path, so the node publishes stop.
-    assert lane_path(np.zeros((H, W), np.uint8), to_ground, 0.5) == []
+    # Road only near the bumper, nothing on the arc: lost, so the node stops.
+    near = road_mask() & (X < L - 2 * BAND)
+    assert road_target(near, X, Y, L, BAND, MIN_PX) is None
+    assert road_target(np.zeros((H, W), bool), X, Y, L, BAND, MIN_PX) is None
 
     print('lane_follower geometry: all checks passed')
 

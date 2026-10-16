@@ -22,7 +22,7 @@ go to `~/bags/drive_<timestamp>/`. Inspect with `ros2 bag info`, replay with
 
 ## Autonomous (camera pure pursuit)
 `ros2 launch pistar_car car.launch.py use_camera:=true use_follower:=true`
-Stops when no yellow tape is seen. Measure the camera block of
+Follows the centroid of the dark road; stops when too little road is on the lookahead arc. Measure the camera block of
 `lane_follower` in `config/car.yaml` first, on a stand, watching
 `/lane_follower/debug` in `rqt_image_view`.
 
