@@ -11,7 +11,6 @@ what the geometric lane_follower would have steered, as a baseline to beat.
 """
 import argparse
 import bisect
-import math
 import os
 
 import cv2
@@ -22,7 +21,7 @@ from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image
 from ackermann_msgs.msg import AckermannDrive
 
-from pistar_car.lane_follower import ground_grid, pure_pursuit, road_target, track_region
+from pistar_car.lane_geometry import grid_for, steer_from_frame
 
 
 def read(uri):
@@ -48,7 +47,6 @@ def main():
     ap.add_argument('--config', default=os.path.join(os.path.dirname(__file__), '..', 'config', 'car.yaml'))
     a = ap.parse_args()
     p = yaml.safe_load(open(a.config))['lane_follower']['ros__parameters']
-    lim = p.get('max_steering_angle', 0.4)
     os.makedirs(a.out, exist_ok=True)
     for uri in a.bags:
         imgs, cmds = read(uri.rstrip('/'))
@@ -60,15 +58,13 @@ def main():
             if j >= 0:
                 _, steer[i], speed[i] = cmds[j]
                 age[i] = (t - ct[j]) / 1e9
-        h, w = imgs[0][1].shape[:2]
-        X, Y = ground_grid(w, h, p['cam_height'], math.radians(p['cam_pitch_deg']), math.radians(p['cam_hfov_deg']))
+        X, Y = grid_for(p, imgs[0][1].shape[1], imgs[0][1].shape[0])
         road, geom = np.zeros(n), np.full(n, np.nan)
         for i, (_, im) in enumerate(imgs):
-            region = track_region(cv2.cvtColor(im, cv2.COLOR_RGB2HSV)[:, :, 2] <= p['road_v_max'])
+            region, _, steer = steer_from_frame(im, X, Y, p)
             road[i] = region.mean()
-            tgt = road_target(region, X, Y, p['lookahead_distance'], p['band'], p['min_pixels'])
-            if tgt:
-                geom[i] = max(-lim, min(lim, pure_pursuit(*tgt, p['wheelbase'])))
+            if steer is not None:
+                geom[i] = steer
         name = os.path.basename(uri.rstrip('/'))
         np.savez_compressed(os.path.join(a.out, name + '.npz'),
                             image=np.stack([im for _, im in imgs]), t=np.array([t for t, _ in imgs]),

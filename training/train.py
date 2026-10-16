@@ -5,11 +5,9 @@
 Needs torch, torchvision, and litert-torch + ai-edge-litert for the export
 (the same pins as camera_setup's requirements.lock.txt).
 
-Input is what bag_to_npz writes. Kept frames: labelled, pad live, a human
-command (not the follower's), moving forward, on the track. Each bag's last
-20% is validation, after a 1 s gap, so near-identical neighbouring frames
-never straddle the split. Train-time flip (steer negated) and brightness
-jitter; nothing else.
+Input is what bag_to_npz writes; data.py picks the frames and the split,
+model.py is the network, export.py the tflite. This file is the loop:
+train-time flip (steer negated) and brightness jitter, best epoch by val MAE.
 
 Writes policy.tflite (img_in: 1x120x160x3 raw RGB 0-255 -> steer rad, layout
 and normalisation baked in so the Pi only feeds the camera frame), policy.pt
@@ -22,84 +20,10 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision
 
-MAX_STEER = 0.4                 # rad, matches actuator/teleop max_steering_angle
-FOLLOWER_SPEED = 0.36           # frames at exactly this speed came from AUTO
-
-
-def keep(d, min_road):
-    s, v = d['steer'], d['speed']
-    return (np.isfinite(s) & (d['cmd_age'] < 0.25) & ~np.isclose(v, FOLLOWER_SPEED, atol=1e-3)
-            & (v > 0.02) & (d['road_frac'] >= min_road))
-
-
-def split(n, val_frac=0.2, gap=20):
-    """Contiguous: first part train, last val_frac val, `gap` frames dropped between."""
-    cut = int(n * (1 - val_frac))
-    return np.arange(0, max(cut - gap, 0)), np.arange(cut, n)
-
-
-class Policy(nn.Module):
-    def __init__(self, pretrained=True):
-        super().__init__()
-        w = torchvision.models.MobileNet_V2_Weights.IMAGENET1K_V1 if pretrained else None
-        self.features = torchvision.models.mobilenet_v2(weights=w).features
-        self.head = nn.Sequential(nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Dropout(0.3), nn.Linear(1280, 1))
-        self.register_buffer('mean', torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1) * 255)
-        self.register_buffer('std', torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1) * 255)
-
-    def forward(self, x):       # x: N x 3 x H x W, RGB 0-255
-        return torch.tanh(self.head(self.features((x - self.mean) / self.std))).reshape(-1) * MAX_STEER
-
-
-class Deployed(nn.Module):
-    """What the Pi runs: the camera frame as-is (N x H x W x 3, RGB 0-255)."""
-    def __init__(self, policy):
-        super().__init__()
-        self.policy = policy
-
-    def forward(self, img_in):
-        return self.policy(img_in.permute(0, 3, 1, 2))
-
-
-def export_tflite(model, path, check_frames, tol=1e-4):
-    """torch -> tflite via litert_torch, then prove it with the interpreter."""
-    import litert_torch
-    from ai_edge_litert.interpreter import Interpreter
-    deployed = Deployed(model).eval()
-    # Keyword trace names the tflite input tensor img_in (positional = args_0).
-    litert_torch.convert(deployed, sample_kwargs={'img_in': torch.zeros(1, 120, 160, 3)}).export(path)
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    inp, out = it.get_input_details()[0], it.get_output_details()[0]
-    with torch.no_grad():
-        ref = deployed(torch.from_numpy(check_frames).float()).numpy()
-    got = []
-    for f in check_frames:
-        it.set_tensor(inp['index'], f[None].astype(np.float32))
-        it.invoke()
-        got.append(float(it.get_tensor(out['index']).ravel()[0]))
-    worst = float(np.abs(np.array(got) - ref).max())
-    if worst > tol:
-        raise SystemExit(f'tflite disagrees with torch by {worst:.2e} rad')
-    return worst
-
-
-def load(paths, min_road):
-    tr, va = {'x': [], 'y': []}, {'x': [], 'y': [], 'geom': [], 'bag': []}
-    for p in paths:
-        d = np.load(p)
-        idx = np.flatnonzero(keep(d, min_road))
-        itr, iva = split(len(idx))
-        for part, sel in ((tr, idx[itr]), (va, idx[iva])):
-            part['x'].append(d['image'][sel])
-            part['y'].append(d['steer'][sel])
-        va['geom'].append(np.nan_to_num(d['geom_steer'][idx[iva]]) if 'geom_steer' in d else np.full(len(iva), np.nan))
-        va['bag'] += [os.path.basename(p)[6:21]] * len(iva)
-    cat = lambda part: {k: np.concatenate(v) if k != 'bag' else np.array(v) for k, v in part.items()}
-    return cat(tr), cat(va)
-
+from data import load
+from export import export_tflite
+from model import MAX_STEER, Policy
 
 def to_tensor(x, device):
     return torch.from_numpy(x).to(device).permute(0, 3, 1, 2).float()
@@ -174,8 +98,7 @@ def main():
               'policy': metrics(pred, y),
               'baseline_straight': metrics(np.zeros_like(y), y),
               'baseline_mean': metrics(np.full_like(y, tr['y'].mean()), y),
-              # None when the npz predates geom_steer (re-run bag_to_npz).
-              'baseline_geometric_follower': None if np.isnan(va['geom']).any() else metrics(va['geom'], y),
+              'baseline_geometric_follower': metrics(va['geom'], y),
               'policy_per_bag': {b: metrics(pred[va['bag'] == b], y[va['bag'] == b]) for b in np.unique(va['bag'])}}
     os.makedirs(a.out, exist_ok=True)
     json.dump(report, open(os.path.join(a.out, 'metrics.json'), 'w'), indent=1)

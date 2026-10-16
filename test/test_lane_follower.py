@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from pistar_car.lane_follower import ground_grid, road_target, pure_pursuit, track_region
+from pistar_car.lane_geometry import ground_grid, road_target, pure_pursuit, track_region
 
 W, H, CAM_H, PITCH, FOV = 160, 120, 0.15, math.radians(20), math.radians(60)
 X, Y = ground_grid(W, H, CAM_H, PITCH, FOV)

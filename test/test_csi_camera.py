@@ -1,7 +1,7 @@
 """Self-check for the raw Bayer unpack. Run: colcon test, or python3 test/test_csi_camera.py"""
 import numpy as np
 
-from pistar_car.csi_camera import debayer, vblank_for, FRAME_BYTES, W, H, BYTES_PER_LINE, PIXEL_RATE, LINE_PIXELS
+from pistar_car.ov5647 import debayer, vblank_for, FRAME_BYTES, H, BYTES_PER_LINE, PIXEL_RATE, LINE_PIXELS
 
 
 def test_unpack():

@@ -1,5 +1,5 @@
 """Self-check for the joy axis mapping. Run: colcon test, or python3 test/test_teleop_joy.py"""
-from pistar_car.teleop_joy import scaled, toggled
+from pistar_car.pad_mapping import scaled, toggled
 
 LIMIT = 0.4
 

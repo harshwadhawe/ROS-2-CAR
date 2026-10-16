@@ -17,10 +17,9 @@ always lies between them. Road centroid also beat edge methods on the old
 taped track (r=+0.52 vs +0.15, camera_setup/lane_detection_track.ipynb).
 
 Camera geometry (height, pitch, hfov) must be measured on the car; tune it in
-config/car.yaml while watching the debug image with the car on a stand.
+config/car.yaml while watching the debug image with the car on a stand. The
+maths lives in lane_geometry.py; this file is the ROS wiring and the overlay.
 """
-import math
-
 import numpy as np
 import cv2
 import rclpy
@@ -30,45 +29,7 @@ from sensor_msgs.msg import Image
 from ackermann_msgs.msg import AckermannDrive
 from cv_bridge import CvBridge
 
-
-def ground_grid(width, height, cam_height, pitch, hfov):
-    """Per-pixel floor position -> (forward, left) arrays in metres, NaN above
-    the horizon. Flat floor, camera pitch radians down, cam_height up."""
-    f = (width / 2.0) / math.tan(hfov / 2.0)
-    u, v = np.meshgrid(np.arange(width), np.arange(height))
-    a = (u - width / 2.0) / f      # right, in focal units
-    b = (v - height / 2.0) / f     # down, in focal units
-    down = b * math.cos(pitch) + math.sin(pitch)
-    t = np.where(down > 1e-6, cam_height / np.where(down > 1e-6, down, 1.0), np.nan)
-    return t * (math.cos(pitch) - b * math.sin(pitch)), -t * a
-
-
-def track_region(dark, seed_rows=20):
-    """The dark region under the car: the connected component owning most of
-    the bottom-centre patch. Dark areas cut off by lighter floor are dropped."""
-    h, w = dark.shape
-    _, labels = cv2.connectedComponents(dark.astype(np.uint8), connectivity=4)
-    seed = labels[h - seed_rows:, w // 4:3 * w // 4]
-    counts = np.bincount(seed.ravel(), minlength=2)
-    counts[0] = 0                      # label 0 is "not dark"
-    return labels == counts.argmax() if counts.max() else np.zeros_like(dark)
-
-
-def road_target(road, X, Y, lookahead, band, min_pixels):
-    """Centroid (forward, left) of road pixels on the lookahead arc, or None."""
-    with np.errstate(invalid='ignore'):
-        on_arc = road & (np.abs(np.hypot(X, Y) - lookahead) < band)
-    if np.count_nonzero(on_arc) < min_pixels:
-        return None
-    return float(X[on_arc].mean()), float(Y[on_arc].mean())
-
-
-def pure_pursuit(x, y, wheelbase):
-    """Steering angle (rad, + = left) that arcs through ground point (x, y)."""
-    d2 = x * x + y * y
-    if d2 < 1e-9:
-        return 0.0
-    return math.atan(wheelbase * 2.0 * y / d2)
+from pistar_car.lane_geometry import grid_for, steer_from_frame
 
 
 class LaneFollower(Node):
@@ -102,18 +63,12 @@ class LaneFollower(Node):
         rgb = self.bridge.imgmsg_to_cv2(msg, 'rgb8')
         h, w = rgb.shape[:2]
         if self.grid is None or self.grid[0].shape != (h, w):
-            self.grid = ground_grid(w, h, self.p['cam_height'],
-                                    math.radians(self.p['cam_pitch_deg']),
-                                    math.radians(self.p['cam_hfov_deg']))
-        X, Y = self.grid
-        road = track_region(cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 2] <= self.p['road_v_max'])
-        target = road_target(road, X, Y, self.p['lookahead_distance'],
-                             self.p['band'], self.p['min_pixels'])
+            self.grid = grid_for(self.p, w, h)
+        road, target, steer = steer_from_frame(rgb, *self.grid, self.p)
 
         cmd = AckermannDrive()
         if target:
-            limit = self.p['max_steering_angle']
-            cmd.steering_angle = max(-limit, min(limit, pure_pursuit(*target, self.p['wheelbase'])))
+            cmd.steering_angle = steer
             cmd.speed = self.p['speed']
             if self.lost:
                 self.get_logger().info('Road found, driving.')

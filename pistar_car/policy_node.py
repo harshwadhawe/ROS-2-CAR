@@ -21,7 +21,7 @@ from sensor_msgs.msg import Image
 from ackermann_msgs.msg import AckermannDrive
 from cv_bridge import CvBridge
 
-from pistar_car.lane_follower import track_region
+from pistar_car.lane_geometry import track_region
 
 MODEL_SIZE = (160, 120)         # train.py input, w x h
 
