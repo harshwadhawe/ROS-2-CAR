@@ -4,7 +4,7 @@ from datetime import datetime
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, LaunchConfigurationEquals
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -28,9 +28,11 @@ def generate_launch_description():
         DeclareLaunchArgument('use_camera', default_value='false'),
         DeclareLaunchArgument('use_imu', default_value='false'),
         DeclareLaunchArgument('use_joy', default_value='true'),
-        # Starts lane_follower on /auto_cmd; square on the pad hands it /cmd.
+        # What drives in AUTO, on /auto_cmd; square on the pad hands it /cmd.
+        # follower = geometric lane_follower, policy = learned policy_node.
         # Needs use_camera:=true to see anything and use_joy for the switch.
-        DeclareLaunchArgument('use_follower', default_value='false'),
+        DeclareLaunchArgument('auto', default_value='none',
+                              choices=['none', 'follower', 'policy']),
         # Training data: camera frames + the /cmd driving them, as a rosbag.
         DeclareLaunchArgument('record', default_value='false'),
 
@@ -47,7 +49,11 @@ def generate_launch_description():
 
         Node(package='pistar_car', executable='lane_follower', name='lane_follower',
              parameters=[cfg], output='screen', remappings=[('cmd', 'auto_cmd')],
-             condition=IfCondition(LaunchConfiguration('use_follower'))),
+             condition=LaunchConfigurationEquals('auto', 'follower')),
+
+        Node(package='pistar_car', executable='policy_node', name='policy',
+             parameters=[cfg], output='screen', remappings=[('cmd', 'auto_cmd')],
+             condition=LaunchConfigurationEquals('auto', 'policy')),
 
         # Not camera_ros: the apt libcamera expects hyphenated rp1-cfe entity
         # names, Ubuntu's 6.8 kernel has underscores. csi_camera reads raw.

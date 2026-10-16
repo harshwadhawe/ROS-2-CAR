@@ -74,6 +74,14 @@ lane_follower:
     road_v_max: 100          # HSV value <= this is dark
     min_pixels: 30           # fewer road pixels on the arc = lost, stop
 
+policy:
+  ros__parameters:
+    model_path: ~/models/policy.onnx   # from training/train.py
+    speed: 0.36              # model only steers; same speed as lane_follower
+    max_steering_angle: 0.4
+    min_road: 0.15           # off-track test, matches train.py --min-road
+    road_v_max: 100
+
 # imu_node:            # MPU-6050, add when wired (bus 1, 0x68)
 #   ros__parameters:
 #     rate_hz: 100

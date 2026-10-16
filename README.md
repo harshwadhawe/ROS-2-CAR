@@ -21,13 +21,20 @@ go to `~/bags/drive_<timestamp>/`. Inspect with `ros2 bag info`, replay with
 `ros2 bag play`, read in Python with `rosbag2_py`.
 
 ## Autonomous (camera pure pursuit)
-`ros2 launch pistar_car car.launch.py use_camera:=true use_follower:=true`
+`ros2 launch pistar_car car.launch.py use_camera:=true auto:=follower` (or `auto:=policy`)
 Starts in MANUAL (sticks drive). Square on the pad toggles AUTO, where
-lane_follower drives; square again returns to manual. The pad must stay
+the `auto` node drives; square again returns to manual. The pad must stay
 connected in AUTO: if it drops, the car stops and returns in manual. The
 follower steers to the centroid of the dark track and stops when it loses it.
 Measure the camera block of `lane_follower` in `config/car.yaml` first, on a
 stand, watching `/lane_follower/debug`.
+
+## Learned policy
+On the Pi: `python3 training/bag_to_npz.py ~/bags/drive_* --out ~/datasets`.
+On a machine with torch: `python3 training/train.py datasets/*.npz --out training/out/run`
+(needs `onnx` for the export). Copy `policy.onnx` to the Pi's `~/models/` and
+launch with `auto:=policy`. `metrics.json` scores it against the geometric
+follower on held-out frames.
 
 ## Adding a sensor
 1. Add `pistar_car/<sensor>_node.py`.

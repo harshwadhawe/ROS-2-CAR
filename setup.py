@@ -26,6 +26,7 @@ setup(
             'teleop_joy = pistar_car.teleop_joy:main',
             'lane_follower = pistar_car.lane_follower:main',
             'csi_camera = pistar_car.csi_camera:main',
+            'policy_node = pistar_car.policy_node:main',
         ],
     },
 )
