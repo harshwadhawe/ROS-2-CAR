@@ -157,9 +157,6 @@ class LaneFollower(Node):
         out.header = header
         self.debug_pub.publish(out)
 
-    def stop(self):
-        self.pub.publish(AckermannDrive())
-
 
 def main():
     rclpy.init()
@@ -169,7 +166,6 @@ def main():
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        node.stop()
         node.destroy_node()
         rclpy.try_shutdown()
 
