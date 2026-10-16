@@ -6,7 +6,7 @@ ROS 2 Jazzy base stack for the Pi Star Lab RC car.
 | Topic | Type | Source |
 |---|---|---|
 | /cmd | ackermann_msgs/AckermannDrive | teleop or lane_follower |
-| /camera/image_raw | sensor_msgs/Image | camera_ros (optional) |
+| /camera/image_raw | sensor_msgs/Image | csi_camera, OV5647 ribbon cam (optional) |
 | /imu/data_raw | sensor_msgs/Imu | imu_node (planned) |
 | /wheel/speed | std_msgs/Float32 | encoder_node (planned) |
 | /lane_follower/debug | sensor_msgs/Image | lane_follower (mask, path, target) |

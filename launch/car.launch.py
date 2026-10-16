@@ -48,10 +48,9 @@ def generate_launch_description():
              parameters=[cfg], output='screen',
              condition=IfCondition(LaunchConfiguration('use_follower'))),
 
-        # v4l2_camera, not camera_ros: the packaged libcamera 0.7.2 expects
-        # hyphenated rp1-cfe entity names that kernel 6.8 does not provide,
-        # so the Pi 5 CSI port is unusable here. USB UVC cam instead.
-        Node(package='v4l2_camera', executable='v4l2_camera_node', name='camera',
+        # Not camera_ros: the apt libcamera expects hyphenated rp1-cfe entity
+        # names, Ubuntu's 6.8 kernel has underscores. csi_camera reads raw.
+        Node(package='pistar_car', executable='csi_camera', name='camera',
              parameters=[cfg], output='screen',
              condition=IfCondition(LaunchConfiguration('use_camera'))),
 

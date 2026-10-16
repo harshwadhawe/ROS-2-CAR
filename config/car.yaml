@@ -39,14 +39,13 @@ teleop_joy:
 
 camera:
   ros__parameters:
-    # The CSI stack owns /dev/video0-7 and 19-37, so a USB cam lands on the
-    # first free index. Confirm with `v4l2-ctl --list-devices` and prefer the
-    # stable /dev/v4l/by-id/... path -- bare indices move between reboots.
-    video_device: /dev/video8
-    image_size: [160, 120]
-    pixel_format: YUYV
-    output_encoding: rgb8
-    camera_frame_id: camera_link
+    # csi_camera on the OV5647 ribbon cam. No auto exposure: tune these to
+    # the track lighting until the tape is clearly yellow in the debug image.
+    width: 160
+    height: 120
+    analogue_gain: 400       # 16-1023
+    exposure: 500            # 4-500
+    frame_id: camera_link
 
 lane_follower:
   ros__parameters:
