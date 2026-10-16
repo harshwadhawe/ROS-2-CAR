@@ -1,25 +1,31 @@
-"""Self-check for the joy axis mapping. Run: python3 test_teleop_joy.py"""
+"""Self-check for the joy axis mapping. Run: colcon test, or python3 test/test_teleop_joy.py"""
 from pistar_car.teleop_joy import scaled
 
 LIMIT = 0.4
 
-# Stick full right reports +1 on joydev; with scale -1 that must steer right
-# (negative under REP-103), and full left must steer left.
-assert scaled([1.0], 0, -1.0, LIMIT) == -LIMIT
-assert scaled([-1.0], 0, -1.0, LIMIT) == LIMIT
-assert scaled([0.0], 0, -1.0, LIMIT) == 0.0
 
-# Half deflection is half command.
-assert abs(scaled([0.5], 0, -1.0, LIMIT) - (-0.2)) < 1e-9
+def test_axis_mapping():
+    # Stick full right reports +1 on joydev; with scale -1 that must steer right
+    # (negative under REP-103), and full left must steer left.
+    assert scaled([1.0], 0, -1.0, LIMIT) == -LIMIT
+    assert scaled([-1.0], 0, -1.0, LIMIT) == LIMIT
+    assert scaled([0.0], 0, -1.0, LIMIT) == 0.0
 
-# A pad reporting beyond full scale must not exceed the limit.
-assert scaled([-2.0], 0, -1.0, LIMIT) == LIMIT
-assert scaled([2.0], 0, -1.0, LIMIT) == -LIMIT
+    # Half deflection is half command.
+    assert abs(scaled([0.5], 0, -1.0, LIMIT) - (-0.2)) < 1e-9
 
-# A missing axis is zero, never an IndexError: a short Joy message from an
-# unexpected pad must not crash the node mid-drive.
-assert scaled([], 4, -1.0, LIMIT) == 0.0
-assert scaled([0.0, 0.0], 4, -1.0, LIMIT) == 0.0
-assert scaled([1.0], -1, -1.0, LIMIT) == 0.0
+    # A pad reporting beyond full scale must not exceed the limit.
+    assert scaled([-2.0], 0, -1.0, LIMIT) == LIMIT
+    assert scaled([2.0], 0, -1.0, LIMIT) == -LIMIT
 
-print('teleop_joy mapping: all checks passed')
+    # A missing axis is zero, never an IndexError: a short Joy message from an
+    # unexpected pad must not crash the node mid-drive.
+    assert scaled([], 4, -1.0, LIMIT) == 0.0
+    assert scaled([0.0, 0.0], 4, -1.0, LIMIT) == 0.0
+    assert scaled([1.0], -1, -1.0, LIMIT) == 0.0
+
+    print('teleop_joy mapping: all checks passed')
+
+
+if __name__ == '__main__':
+    test_axis_mapping()

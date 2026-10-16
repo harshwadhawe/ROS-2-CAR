@@ -6,6 +6,7 @@ debayers in OpenCV. Exposure, gain and white balance run on the sensor
 itself (OV5647 AEC/AGC/AWB); there is no lens-shading correction.
 """
 import subprocess
+import threading
 
 import numpy as np
 import cv2
@@ -60,33 +61,36 @@ class CsiCamera(Node):
         self.pub = self.create_publisher(Image, '~/image_raw', 1)
         self.bridge = CvBridge()
 
-    def run(self):
-        proc = subprocess.Popen(
+        self.proc = subprocess.Popen(
             ['v4l2-ctl', '-d', '/dev/video0', '--stream-mmap', '--stream-to=-'],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=FRAME_BYTES)
+        # Blocking reads live on their own thread so spin() can still serve
+        # parameter and introspection requests.
+        threading.Thread(target=self.stream, daemon=True).start()
         self.get_logger().info(f'Streaming {self.size[0]}x{self.size[1]}.')
-        try:
-            while rclpy.ok():
-                raw = proc.stdout.read(FRAME_BYTES)
-                if len(raw) < FRAME_BYTES:
-                    self.get_logger().error('Camera stream ended.')
-                    break
-                msg = self.bridge.cv2_to_imgmsg(debayer(raw, self.size), 'bgr8')
-                msg.header.stamp = self.get_clock().now().to_msg()
-                msg.header.frame_id = self.frame_id
-                self.pub.publish(msg)
-        finally:
-            proc.terminate()
+
+    def stream(self):
+        while rclpy.ok():
+            raw = self.proc.stdout.read(FRAME_BYTES)
+            if len(raw) < FRAME_BYTES:
+                self.get_logger().error('Camera stream ended.')
+                rclpy.try_shutdown()
+                return
+            msg = self.bridge.cv2_to_imgmsg(debayer(raw, self.size), 'bgr8')
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = self.frame_id
+            self.pub.publish(msg)
 
 
 def main():
     rclpy.init()
     node = CsiCamera()
     try:
-        node.run()
+        rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        node.proc.terminate()   # else v4l2-ctl outlives us and holds /dev/video0
         node.destroy_node()
         rclpy.try_shutdown()
 
