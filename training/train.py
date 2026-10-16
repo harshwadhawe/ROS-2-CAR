@@ -2,14 +2,18 @@
 
     python3 training/train.py datasets/*.npz --out training/out
 
+Needs torch, torchvision, and litert-torch + ai-edge-litert for the export
+(the same pins as camera_setup's requirements.lock.txt).
+
 Input is what bag_to_npz writes. Kept frames: labelled, pad live, a human
 command (not the follower's), moving forward, on the track. Each bag's last
 20% is validation, after a 1 s gap, so near-identical neighbouring frames
 never straddle the split. Train-time flip (steer negated) and brightness
 jitter; nothing else.
 
-Writes policy.onnx (raw RGB 0-255, 1x3x120x160 -> steer rad, normalisation
-baked in so the Pi only feeds pixels), policy.pt and metrics.json.
+Writes policy.tflite (img_in: 1x120x160x3 raw RGB 0-255 -> steer rad, layout
+and normalisation baked in so the Pi only feeds the camera frame), policy.pt
+and metrics.json. The tflite is checked against torch on every val frame.
 """
 import argparse
 import json
@@ -46,9 +50,40 @@ class Policy(nn.Module):
         self.register_buffer('std', torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1) * 255)
 
     def forward(self, x):       # x: N x 3 x H x W, RGB 0-255
-        # reshape, not [:, 0]: indexing exports as Gather, which OpenCV's DNN
-        # mis-sizes for a batch of one.
         return torch.tanh(self.head(self.features((x - self.mean) / self.std))).reshape(-1) * MAX_STEER
+
+
+class Deployed(nn.Module):
+    """What the Pi runs: the camera frame as-is (N x H x W x 3, RGB 0-255)."""
+    def __init__(self, policy):
+        super().__init__()
+        self.policy = policy
+
+    def forward(self, img_in):
+        return self.policy(img_in.permute(0, 3, 1, 2))
+
+
+def export_tflite(model, path, check_frames, tol=1e-4):
+    """torch -> tflite via litert_torch, then prove it with the interpreter."""
+    import litert_torch
+    from ai_edge_litert.interpreter import Interpreter
+    deployed = Deployed(model).eval()
+    # Keyword trace names the tflite input tensor img_in (positional = args_0).
+    litert_torch.convert(deployed, sample_kwargs={'img_in': torch.zeros(1, 120, 160, 3)}).export(path)
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
+    inp, out = it.get_input_details()[0], it.get_output_details()[0]
+    with torch.no_grad():
+        ref = deployed(torch.from_numpy(check_frames).float()).numpy()
+    got = []
+    for f in check_frames:
+        it.set_tensor(inp['index'], f[None].astype(np.float32))
+        it.invoke()
+        got.append(float(it.get_tensor(out['index']).ravel()[0]))
+    worst = float(np.abs(np.array(got) - ref).max())
+    if worst > tol:
+        raise SystemExit(f'tflite disagrees with torch by {worst:.2e} rad')
+    return worst
 
 
 def load(paths, min_road):
@@ -60,7 +95,7 @@ def load(paths, min_road):
         for part, sel in ((tr, idx[itr]), (va, idx[iva])):
             part['x'].append(d['image'][sel])
             part['y'].append(d['steer'][sel])
-        va['geom'].append(np.nan_to_num(d['geom_steer'][idx[iva]]) if 'geom_steer' in d else np.zeros(len(iva)))
+        va['geom'].append(np.nan_to_num(d['geom_steer'][idx[iva]]) if 'geom_steer' in d else np.full(len(iva), np.nan))
         va['bag'] += [os.path.basename(p)[6:21]] * len(iva)
     cat = lambda part: {k: np.concatenate(v) if k != 'bag' else np.array(v) for k, v in part.items()}
     return cat(tr), cat(va)
@@ -139,7 +174,8 @@ def main():
               'policy': metrics(pred, y),
               'baseline_straight': metrics(np.zeros_like(y), y),
               'baseline_mean': metrics(np.full_like(y, tr['y'].mean()), y),
-              'baseline_geometric_follower': metrics(va['geom'], y),
+              # None when the npz predates geom_steer (re-run bag_to_npz).
+              'baseline_geometric_follower': None if np.isnan(va['geom']).any() else metrics(va['geom'], y),
               'policy_per_bag': {b: metrics(pred[va['bag'] == b], y[va['bag'] == b]) for b in np.unique(va['bag'])}}
     os.makedirs(a.out, exist_ok=True)
     json.dump(report, open(os.path.join(a.out, 'metrics.json'), 'w'), indent=1)
@@ -147,8 +183,8 @@ def main():
 
     model = model.cpu().eval()
     torch.save(model.state_dict(), os.path.join(a.out, 'policy.pt'))
-    torch.onnx.export(model, torch.zeros(1, 3, 120, 160), os.path.join(a.out, 'policy.onnx'),
-                      input_names=['image'], output_names=['steer'], opset_version=11, dynamo=False)
+    report['tflite_max_abs_diff_rad'] = export_tflite(model, os.path.join(a.out, 'policy.tflite'), va['x'])
+    json.dump(report, open(os.path.join(a.out, 'metrics.json'), 'w'), indent=1)
     print(json.dumps({k: v for k, v in report.items() if k != 'policy_per_bag'}, indent=1))
 
 

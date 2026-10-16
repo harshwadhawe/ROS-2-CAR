@@ -1,18 +1,20 @@
-"""Learned steering: training/train.py's policy.onnx on each camera frame.
+"""Learned steering: training/train.py's policy.tflite on each camera frame.
 
 Subscribes: camera/image_raw (sensor_msgs/Image)
 Publishes:  cmd (ackermann_msgs/AckermannDrive); launch remaps it to auto_cmd
 
-The model only steers; speed is fixed. It runs on OpenCV's DNN module, so the
-Pi needs nothing beyond what the camera stack already uses. When the visible
-track region falls below min_road -- the same test that dropped off-track
-frames from training -- it publishes a stop, so the model is never trusted
-somewhere it was not trained.
+The model only steers; speed is fixed. It runs on the ai_edge_litert
+interpreter (pip install ai-edge-litert), the runtime donkeycar used. When
+the visible track region falls below min_road -- the same test that dropped
+off-track frames from training -- it publishes a stop, so the model is never
+trusted somewhere it was not trained.
 """
 import os
 
 import cv2
+import numpy as np
 import rclpy
+from ai_edge_litert.interpreter import Interpreter
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -28,7 +30,7 @@ class PolicyNode(Node):
     def __init__(self):
         super().__init__('policy')
         defaults = {
-            'model_path': '~/models/policy.onnx',
+            'model_path': '~/models/policy.tflite',
             'speed': 0.36,             # m/s nominal, as lane_follower
             'max_steering_angle': 0.4,
             'min_road': 0.15,          # matches train.py --min-road
@@ -39,7 +41,10 @@ class PolicyNode(Node):
         self.p = {name: self.get_parameter(name).value for name in defaults}
 
         path = os.path.expanduser(self.p['model_path'])
-        self.net = cv2.dnn.readNetFromONNX(path)
+        self.net = Interpreter(model_path=path)
+        self.net.allocate_tensors()
+        self.inp = self.net.get_input_details()[0]['index']
+        self.out = self.net.get_output_details()[0]['index']
         self.bridge = CvBridge()
         self.lost = True
         self.pub = self.create_publisher(AckermannDrive, 'cmd', 10)
@@ -52,10 +57,13 @@ class PolicyNode(Node):
                                 <= self.p['road_v_max']).mean() >= self.p['min_road']
         cmd = AckermannDrive()
         if on_track:
-            # Model takes raw RGB 0-255 and normalises internally.
-            self.net.setInput(cv2.dnn.blobFromImage(rgb, 1.0, MODEL_SIZE, swapRB=False, crop=False))
+            # img_in is the frame as-is: 1 x 120 x 160 x 3, RGB 0-255.
+            if rgb.shape[1::-1] != MODEL_SIZE:
+                rgb = cv2.resize(rgb, MODEL_SIZE, interpolation=cv2.INTER_AREA)
+            self.net.set_tensor(self.inp, rgb[None].astype(np.float32))
+            self.net.invoke()
             limit = self.p['max_steering_angle']
-            cmd.steering_angle = max(-limit, min(limit, float(self.net.forward().ravel()[0])))
+            cmd.steering_angle = max(-limit, min(limit, float(self.net.get_tensor(self.out).ravel()[0])))
             cmd.speed = self.p['speed']
             if self.lost:
                 self.get_logger().info('On track, policy driving.')

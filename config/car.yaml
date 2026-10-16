@@ -76,7 +76,7 @@ lane_follower:
 
 policy:
   ros__parameters:
-    model_path: ~/models/policy.onnx   # from training/train.py
+    model_path: ~/models/policy.tflite # from training/train.py
     speed: 0.36              # model only steers; same speed as lane_follower
     max_steering_angle: 0.4
     min_road: 0.15           # off-track test, matches train.py --min-road

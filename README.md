@@ -32,9 +32,9 @@ stand, watching `/lane_follower/debug`.
 ## Learned policy
 On the Pi: `python3 training/bag_to_npz.py ~/bags/drive_* --out ~/datasets`.
 On a machine with torch: `python3 training/train.py datasets/*.npz --out training/out/run`
-(needs `onnx` for the export). Copy `policy.onnx` to the Pi's `~/models/` and
+(needs `litert-torch` + `ai-edge-litert`, camera_setup's pins). Copy `policy.tflite` to the Pi's `~/models/` and
 launch with `auto:=policy`. `metrics.json` scores it against the geometric
-follower on held-out frames.
+follower on held-out frames. The Pi needs `ai-edge-litert` to run it.
 
 ## Adding a sensor
 1. Add `pistar_car/<sensor>_node.py`.
