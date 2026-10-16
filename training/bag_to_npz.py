@@ -3,8 +3,9 @@ the Pi (needs rosbag2_py). Filtering is left to training, so nothing is lost.
 
     python3 training/bag_to_npz.py ~/bags/drive_* --out ~/datasets
 
-Per frame: image (120x160x3 RGB uint8), the /cmd in force when it was
-captured (steer rad, speed), how old that /cmd was, and road_frac -- the share
+Per frame: image (120x160x3 RGB uint8), the command in force when it was
+captured (steer rad, speed; /ackermann_cmd, or /cmd in bags from before the
+F1TENTH topic names), how old that command was, and road_frac -- the share
 of the frame that is track connected to the floor ahead (lane_follower's
 track_region), which is ~0 when the car is off the track, and geom_steer --
 what the geometric lane_follower would have steered, as a baseline to beat.
@@ -19,7 +20,7 @@ import yaml
 import rosbag2_py
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image
-from ackermann_msgs.msg import AckermannDrive
+from ackermann_msgs.msg import AckermannDrive, AckermannDriveStamped
 
 from pistar_car.lane_geometry import grid_for, steer_from_frame
 
@@ -34,8 +35,9 @@ def read(uri):
             m = deserialize_message(data, Image)
             a = np.frombuffer(m.data, np.uint8).reshape(m.height, m.width, -1)
             imgs.append((t, a if m.encoding == 'rgb8' else cv2.cvtColor(a, cv2.COLOR_BGR2RGB)))
-        elif topic == '/cmd':
-            m = deserialize_message(data, AckermannDrive)
+        elif topic in ('/ackermann_cmd', '/cmd'):
+            m = deserialize_message(data, AckermannDriveStamped).drive if topic == '/ackermann_cmd' \
+                else deserialize_message(data, AckermannDrive)
             cmds.append((t, m.steering_angle, m.speed))
     return imgs, cmds
 

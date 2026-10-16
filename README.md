@@ -1,7 +1,7 @@
 # pistar_car
 
 ROS 2 Jazzy stack for the Pi Star Lab RC car: PCA9685 actuation, PS4 pad
-teleop, the OV5647 ribbon camera, rosbag data collection, a geometric lane
+teleop, the OV5647 ribbon camera, F1TENTH topic conventions (`/drive` in, `/ackermann_cmd` out), rosbag data collection, a geometric lane
 follower and a learned (TFLite) steering policy, switched by **square** on the pad.
 
 **Pipeline:** [install](docs/install.md) → [calibrate](docs/calibrate.md) →
@@ -54,16 +54,16 @@ ros2 launch pistar_car car.launch.py use_camera:=true auto:=policy            # 
 ## Code map
 | Path | What | ROS? |
 |---|---|---|
-| `pistar_car/actuator_node.py` | /cmd -> PCA9685 PWM, watchdog to neutral | node |
+| `pistar_car/actuator_node.py` | /ackermann_cmd -> PCA9685 PWM, watchdog to neutral | node |
 | `pistar_car/pca9685.py` | PCA9685 register driver | no |
-| `pistar_car/teleop_joy.py` | pad -> /cmd; MANUAL/AUTO switch, forwards /auto_cmd | node |
+| `pistar_car/teleop_joy.py` | the mux: pad or /drive -> /ackermann_cmd; square switches | node |
 | `pistar_car/pad_mapping.py` | stick scaling, square toggle | no |
 | `pistar_car/csi_camera.py` | camera -> /camera/image_raw | node |
 | `pistar_car/ov5647.py` | sensor setup, frame rate, Bayer unpack | no |
-| `pistar_car/lane_follower.py` | geometric follower -> /auto_cmd, debug image | node |
+| `pistar_car/lane_follower.py` | geometric follower -> /drive, debug image | node |
 | `pistar_car/lane_geometry.py` | floor projection, track region, pure pursuit | no |
-| `pistar_car/policy_node.py` | TFLite policy -> /auto_cmd | node |
-| `pistar_car/teleop_keyboard.py` | keyboard teleop (fallback) | node |
+| `pistar_car/policy_node.py` | TFLite policy -> /drive | node |
+| `pistar_car/teleop_keyboard.py` | keyboard -> /ackermann_cmd (fallback, `use_joy:=false`) | node |
 | `launch/car.launch.py` | one launch, all modes | - |
 | `config/car.yaml` | every tunable, per node | - |
 | `training/bag_to_npz.py` | bags -> npz (runs on the Pi) | rosbag2 |

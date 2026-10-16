@@ -8,6 +8,9 @@
 
 Add `record:=true` to keep collecting data.
 
+Your own controller: publish `ackermann_msgs/AckermannDriveStamped` on `/drive`
+(F1TENTH's convention) and launch without `auto:=`; square hands it the car.
+
 - Starts in **MANUAL**. **Square** toggles **AUTO**; square again returns to manual.
 - AUTO only steers; speed is fixed (`speed` in the `lane_follower` / `policy` blocks).
 - The pad is the kill switch in both modes: if it drops, the car stops within

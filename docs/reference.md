@@ -4,10 +4,18 @@
 | Topic | Type | From -> to |
 |---|---|---|
 | /joy | sensor_msgs/Joy | joy_node -> teleop_joy |
-| /cmd | ackermann_msgs/AckermannDrive | teleop_joy -> actuator_node (the only /cmd publisher) |
-| /auto_cmd | ackermann_msgs/AckermannDrive | lane_follower or policy -> teleop_joy, forwarded in AUTO |
+| /drive | ackermann_msgs/AckermannDriveStamped | lane_follower or policy -> teleop_joy, forwarded in AUTO |
+| /ackermann_cmd | ackermann_msgs/AckermannDriveStamped | teleop_joy -> actuator_node (the only publisher) |
 | /camera/image_raw | sensor_msgs/Image | csi_camera, 160x120 bgr8 at 20 Hz |
 | /lane_follower/debug | sensor_msgs/Image | lane_follower: track (blue), lookahead arc (green), target |
+
+These are F1TENTH's names and type: any controller that publishes
+`AckermannDriveStamped` on `/drive` (F1TENTH pure pursuit, gap follow, ...)
+drives this car in AUTO unchanged. `teleop_joy` stands where F1TENTH's
+`ackermann_mux` does, and `actuator_node` where its VESC driver does.
+`/drive` messages carry the stamp of the camera frame they were computed from.
+Bags from before the switch (2026-10-15 22:39-22:49) have `/cmd`
+(`AckermannDrive`); `bag_to_npz.py` reads both.
 
 Steering is radians, positive = left (REP-103). Speed is m/s nominal and
 open-loop: it drops as the battery drains.

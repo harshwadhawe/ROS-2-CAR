@@ -1,4 +1,6 @@
-"""Keyboard teleop. Run with `ros2 run` in a real terminal (not from a launch file)."""
+"""Keyboard teleop -> /ackermann_cmd (straight to the actuator; launch with
+use_joy:=false so teleop_joy is not also publishing). Run with `ros2 run` in a
+real terminal (not from a launch file)."""
 import select
 import sys
 import termios
@@ -6,7 +8,7 @@ import tty
 
 import rclpy
 from rclpy.node import Node
-from ackermann_msgs.msg import AckermannDrive
+from ackermann_msgs.msg import AckermannDriveStamped
 
 HELP = """
 Pi Star car teleop
@@ -29,7 +31,7 @@ class Teleop(Node):
         self.steer_step = self.get_parameter('steer_step').value
         self.max_speed = self.get_parameter('max_speed').value
         self.max_steer = self.get_parameter('max_steering_angle').value
-        self.pub = self.create_publisher(AckermannDrive, 'cmd', 10)
+        self.pub = self.create_publisher(AckermannDriveStamped, 'ackermann_cmd', 10)
         self.speed = 0.0
         self.steer = 0.0
 
@@ -53,9 +55,11 @@ class Teleop(Node):
         sys.stdout.flush()
 
     def publish(self):
-        msg = AckermannDrive()
-        msg.speed = float(self.speed)
-        msg.steering_angle = float(self.steer)
+        msg = AckermannDriveStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'base_link'
+        msg.drive.speed = float(self.speed)
+        msg.drive.steering_angle = float(self.steer)
         self.pub.publish(msg)
 
 

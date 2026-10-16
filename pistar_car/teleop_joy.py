@@ -1,13 +1,16 @@
 """Gamepad teleop and the manual/auto switch. The pad owns the car.
 
 Subscribes: joy (sensor_msgs/Joy)
-            auto_cmd (ackermann_msgs/AckermannDrive) from lane_follower
-Publishes:  cmd (ackermann_msgs/AckermannDrive) at 20 Hz.
+            drive (ackermann_msgs/AckermannDriveStamped) from the AUTO source
+Publishes:  ackermann_cmd (ackermann_msgs/AckermannDriveStamped) at 20 Hz.
+
+This sits where F1TENTH's ackermann_mux does: autonomy publishes /drive,
+this picks pad or /drive, and the actuator only ever hears /ackermann_cmd.
 
 Starts in MANUAL: sticks drive, like an RC transmitter. Square toggles AUTO,
-where auto_cmd is forwarded instead; square again returns to manual. Auto
+where /drive is forwarded instead; square again returns to manual. Auto
 still needs a live pad: if the pad drops, the car stops and comes back in
-manual. A stale auto_cmd (follower dead or lost) is sent as a stop.
+manual. A stale /drive (follower dead or lost) is sent as a stop.
 
 There is no deadman button: centred sticks mean stopped. Two things stop a
 runaway instead. If the pad drops off Bluetooth, joy_node goes quiet and the
@@ -24,7 +27,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
-from ackermann_msgs.msg import AckermannDrive
+from ackermann_msgs.msg import AckermannDriveStamped
 
 from pistar_car.pad_mapping import scaled, toggled
 
@@ -47,7 +50,7 @@ class TeleopJoy(Node):
             # Needs joy_node's autorepeat_rate non-zero to be meaningful.
             'joy_timeout': 0.5,
             'mode_button': 3,          # square on hid-playstation (cross 0, circle 1, triangle 2)
-            'auto_timeout': 0.25,      # older auto_cmd than this is sent as a stop
+            'auto_timeout': 0.25,      # older /drive than this is sent as a stop
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -58,11 +61,11 @@ class TeleopJoy(Node):
         self.live = False
         self.auto = False
         self.button_down = False
-        self.auto_cmd = None
+        self.drive_msg = None
         self.last_auto = 0.0
-        self.pub = self.create_publisher(AckermannDrive, 'cmd', 10)
+        self.pub = self.create_publisher(AckermannDriveStamped, 'ackermann_cmd', 10)
         self.create_subscription(Joy, 'joy', self.on_joy, 10)
-        self.create_subscription(AckermannDrive, 'auto_cmd', self.on_auto, 10)
+        self.create_subscription(AckermannDriveStamped, 'drive', self.on_auto, 10)
         self.create_timer(1.0 / self.p['publish_rate'], self.tick)
         self.get_logger().info(
             f"Steering axis {self.p['steer_axis']}, throttle axis "
@@ -77,10 +80,10 @@ class TeleopJoy(Node):
         self.button_down = down
         if auto != self.auto:
             self.auto = auto
-            self.get_logger().info('AUTO: lane follower driving.' if auto else 'MANUAL: sticks driving.')
+            self.get_logger().info('AUTO: /drive driving.' if auto else 'MANUAL: sticks driving.')
 
     def on_auto(self, msg):
-        self.auto_cmd = msg
+        self.drive_msg = msg
         self.last_auto = time.monotonic()
 
     def tick(self):
@@ -98,15 +101,22 @@ class TeleopJoy(Node):
 
         if self.auto:
             fresh = time.monotonic() - self.last_auto <= self.p['auto_timeout']
-            self.pub.publish(self.auto_cmd if fresh else AckermannDrive())
+            self.pub.publish(self.drive_msg if fresh else self.stamped())
             return
 
-        msg = AckermannDrive()
-        msg.steering_angle = scaled(self.joy.axes, self.p['steer_axis'],
-                                    self.p['steer_scale'], self.p['max_steering_angle'])
-        msg.speed = scaled(self.joy.axes, self.p['throttle_axis'],
-                           self.p['throttle_scale'], self.p['max_speed'])
+        msg = self.stamped()
+        msg.drive.steering_angle = scaled(self.joy.axes, self.p['steer_axis'],
+                                          self.p['steer_scale'], self.p['max_steering_angle'])
+        msg.drive.speed = scaled(self.joy.axes, self.p['throttle_axis'],
+                                 self.p['throttle_scale'], self.p['max_speed'])
         self.pub.publish(msg)
+
+    def stamped(self):
+        """A zero (stop) command stamped now."""
+        msg = AckermannDriveStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'base_link'
+        return msg
 
 
 def main():

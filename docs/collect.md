@@ -8,7 +8,7 @@ steers, right stick throttle, centred = stop. **Ctrl-C once** and wait ~2 s;
 the bag closes cleanly.
 
 Each run writes `~/bags/drive_<timestamp>/`: `/camera/image_raw` (160x120 at
-20 Hz) and `/cmd` (what was actually sent to the car, so labels stay correct
+20 Hz) and `/ackermann_cmd` (what was actually sent to the car, so labels stay correct
 even if a stick was inverted). Check one with `ros2 bag info <dir>`.
 
 ## What makes good data

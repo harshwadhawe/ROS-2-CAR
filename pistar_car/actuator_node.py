@@ -1,6 +1,6 @@
 """Drives steering servo and ESC through the PCA9685.
 
-Subscribes: cmd (ackermann_msgs/AckermannDrive)
+Subscribes: ackermann_cmd (ackermann_msgs/AckermannDriveStamped), as F1TENTH's VESC driver
   steering_angle: radians, positive = left (REP-103)
   speed:          m/s, negative = reverse
 A watchdog returns the car to neutral if commands stop arriving.
@@ -10,7 +10,7 @@ import time
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from ackermann_msgs.msg import AckermannDrive
+from ackermann_msgs.msg import AckermannDriveStamped
 
 from pistar_car.pca9685 import PCA9685
 
@@ -58,9 +58,9 @@ class ActuatorNode(Node):
 
         self.last_cmd_time = 0.0
         self.stopped = True
-        self.create_subscription(AckermannDrive, 'cmd', self.on_cmd, 10)
+        self.create_subscription(AckermannDriveStamped, 'ackermann_cmd', self.on_cmd, 10)
         self.create_timer(0.05, self.watchdog)
-        self.get_logger().info('Actuator ready. Waiting for commands on /cmd.')
+        self.get_logger().info('Actuator ready. Waiting for commands on /ackermann_cmd.')
 
     def steering_pwm(self, angle):
         norm = clamp(angle / self.p['max_steering_angle'], -1.0, 1.0)
@@ -84,8 +84,8 @@ class ActuatorNode(Node):
         if self.stopped:
             self.get_logger().info('Commands received, driving.')
             self.stopped = False
-        self.pca.set_pwm(self.p['steering_channel'], self.steering_pwm(msg.steering_angle))
-        self.pca.set_pwm(self.p['throttle_channel'], self.throttle_pwm(msg.speed))
+        self.pca.set_pwm(self.p['steering_channel'], self.steering_pwm(msg.drive.steering_angle))
+        self.pca.set_pwm(self.p['throttle_channel'], self.throttle_pwm(msg.drive.speed))
 
     def watchdog(self):
         if self.stopped:

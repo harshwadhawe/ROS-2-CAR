@@ -5,7 +5,7 @@
 cd ~/ros2_ws/src/pistar_car
 python3 training/bag_to_npz.py ~/bags/drive_* --out ~/datasets
 ```
-Per frame: image, the `/cmd` in force, its age, `road_frac` (share of the frame
+Per frame: image, the `/ackermann_cmd` (or old `/cmd`) in force, its age, `road_frac` (share of the frame
 that is track, ~0 off-track) and `geom_steer` (what the geometric follower
 would steer, the baseline to beat).
 
@@ -36,7 +36,7 @@ higher `r`. Validation is the last 20% of each bag, so it is the same session
 as training and flatters the model; the track is the real test.
 First model (2,702 usable frames): MAE 0.076 rad, r +0.877, vs the follower's 0.194 / +0.517.
 
-What it does: keeps frames with a fresh human `/cmd`, moving forward, track
+What it does: keeps frames with a fresh human command, moving forward, track
 >= 15% of the frame (`data.py`); fine-tunes ImageNet MobileNetV2 with flip and
 brightness augmentation (`model.py`, `train.py`); exports and checks the tflite
 against torch on every val frame, failing loudly on a mismatch (`export.py`).

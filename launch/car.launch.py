@@ -28,12 +28,13 @@ def generate_launch_description():
         DeclareLaunchArgument('use_camera', default_value='false'),
         DeclareLaunchArgument('use_imu', default_value='false'),
         DeclareLaunchArgument('use_joy', default_value='true'),
-        # What drives in AUTO, on /auto_cmd; square on the pad hands it /cmd.
+        # What drives in AUTO: it publishes /drive (F1TENTH's autonomy topic);
+        # square on the pad hands /drive to /ackermann_cmd.
         # follower = geometric lane_follower, policy = learned policy_node.
         # Needs use_camera:=true to see anything and use_joy for the switch.
         DeclareLaunchArgument('auto', default_value='none',
                               choices=['none', 'follower', 'policy']),
-        # Training data: camera frames + the /cmd driving them, as a rosbag.
+        # Training data: camera frames + the /ackermann_cmd driving them, as a rosbag.
         DeclareLaunchArgument('record', default_value='false'),
 
         Node(package='pistar_car', executable='actuator_node', name='actuator_node',
@@ -48,11 +49,11 @@ def generate_launch_description():
              condition=IfCondition(LaunchConfiguration('use_joy'))),
 
         Node(package='pistar_car', executable='lane_follower', name='lane_follower',
-             parameters=[cfg], output='screen', remappings=[('cmd', 'auto_cmd')],
+             parameters=[cfg], output='screen',
              condition=LaunchConfigurationEquals('auto', 'follower')),
 
         Node(package='pistar_car', executable='policy_node', name='policy',
-             parameters=[cfg], output='screen', remappings=[('cmd', 'auto_cmd')],
+             parameters=[cfg], output='screen',
              condition=LaunchConfigurationEquals('auto', 'policy')),
 
         # Not camera_ros: the apt libcamera expects hyphenated rp1-cfe entity
@@ -71,7 +72,7 @@ def generate_launch_description():
         ExecuteProcess(
             cmd=['ros2', 'bag', 'record', '-o',
                  os.path.expanduser(datetime.now().strftime('~/bags/drive_%Y%m%d_%H%M%S')),
-                 '/camera/image_raw', '/cmd'],
+                 '/camera/image_raw', '/ackermann_cmd'],
             output='screen',
             condition=IfCondition(LaunchConfiguration('record'))),
 

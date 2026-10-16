@@ -1,7 +1,7 @@
 """Camera-only pure pursuit on the centroid of the dark road surface.
 
 Subscribes: camera/image_raw (sensor_msgs/Image)
-Publishes:  cmd (ackermann_msgs/AckermannDrive)
+Publishes:  drive (ackermann_msgs/AckermannDriveStamped), F1TENTH's autonomy topic
             lane_follower/debug (sensor_msgs/Image), only while someone watches
 
 Each frame: threshold the dark track, keep only the dark region connected to
@@ -26,7 +26,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from ackermann_msgs.msg import AckermannDrive
+from ackermann_msgs.msg import AckermannDriveStamped
 from cv_bridge import CvBridge
 
 from pistar_car.lane_geometry import grid_for, steer_from_frame
@@ -54,7 +54,7 @@ class LaneFollower(Node):
         self.grid = None                   # built on the first frame, size known then
         self.bridge = CvBridge()
         self.lost = True
-        self.pub = self.create_publisher(AckermannDrive, 'cmd', 10)
+        self.pub = self.create_publisher(AckermannDriveStamped, 'drive', 10)
         self.debug_pub = self.create_publisher(Image, 'lane_follower/debug', 1)
         self.create_subscription(Image, 'camera/image_raw', self.on_image, 1)
         self.get_logger().info('Lane follower up, waiting for camera.')
@@ -66,7 +66,10 @@ class LaneFollower(Node):
             self.grid = grid_for(self.p, w, h)
         road, target, steer = steer_from_frame(rgb, *self.grid, self.p)
 
-        cmd = AckermannDrive()
+        out = AckermannDriveStamped()
+        out.header.stamp = msg.header.stamp      # the frame this steering came from
+        out.header.frame_id = 'base_link'
+        cmd = out.drive
         if target:
             cmd.steering_angle = steer
             cmd.speed = self.p['speed']
@@ -76,7 +79,7 @@ class LaneFollower(Node):
         elif not self.lost:
             self.get_logger().warn('Road lost, stopping.')
             self.lost = True
-        self.pub.publish(cmd)
+        self.pub.publish(out)
 
         if self.debug_pub.get_subscription_count():
             self.publish_debug(rgb, road, target, msg.header)

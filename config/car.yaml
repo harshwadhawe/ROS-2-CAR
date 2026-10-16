@@ -18,7 +18,7 @@ actuator_node:
     # Hard cap, fraction of full throttle. camera_setup/plant.json: the car
     # starts moving near 0.17 (~0.7 m/s) and does ~1.0 m/s at 0.205.
     throttle_limit: 0.25
-    watchdog_timeout: 0.25     # s without /cmd before going neutral
+    watchdog_timeout: 0.25     # s without /ackermann_cmd before going neutral
 
 joy_node:
   ros__parameters:

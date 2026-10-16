@@ -39,7 +39,7 @@ python3 -c "import numpy, ai_edge_litert; print(numpy.__version__)"   # must pri
 | `v4l-utils` (`media-ctl`, `v4l2-ctl`) | `ov5647.py`: camera routing, format, sensor controls, frame stream |
 | `python3-opencv` | debayer, track mask, resizing (`ov5647`, `lane_geometry`, nodes) |
 | `ros-jazzy-cv-bridge` | Image messages <-> numpy in every camera node |
-| `ros-jazzy-ackermann-msgs` | `/cmd`, `/auto_cmd` |
+| `ros-jazzy-ackermann-msgs` | `/drive`, `/ackermann_cmd` |
 | `ros-jazzy-joy` | `joy_node`, the PS4 pad |
 | `ros-jazzy-web-video-server` | live feed in a browser (`use_camera:=true`) |
 | `ros-jazzy-rosbag2`, `-storage-mcap` | `record:=true` and `training/bag_to_npz.py` |
@@ -66,7 +66,7 @@ camera. If they are already installed (from apt) they are harmless as long as
 | A `camera_ros` built from source in this workspace | It shadows apt's, links a libcamera that may be gone; plain `colcon build` rebuilds it | Remove it, see [Cleaning up](#cleaning-up-an-earlier-libcamera-attempt) |
 | `colcon build` without `--packages-select` | Builds every package in `src/`, including leftovers | Always `--packages-select pistar_car` |
 | pip upgrading numpy to 2.x in `~/.local` | `cv_bridge` / ROS Python crashes with a numpy ABI error | `python3 -m pip uninstall --user numpy`; reinstall with `"numpy<2"` |
-| Old `/cmd` publishers from a crashed run | Car twitches or two commanders fight | `pgrep -af pistar_car`, `kill -INT` each |
+| Old `/ackermann_cmd` or `/drive` publishers from a crashed run | Car twitches or two commanders fight | `pgrep -af pistar_car`, `kill -INT` each |
 
 ### Cleaning up an earlier libcamera attempt
 This Pi has leftovers from building libcamera and `camera_ros` from source.
